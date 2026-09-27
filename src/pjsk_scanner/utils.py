@@ -1,0 +1,83 @@
+"""Small privacy helpers shared by CLI and optional integrations."""
+
+from __future__ import annotations
+
+import logging
+import re
+from typing import Any
+
+_SECRET_KEY_PARTS = (
+    "access_token",
+    "accesstoken",
+    "session_token",
+    "sessiontoken",
+    "sdk_open_id",
+    "sdkopenid",
+    "credential",
+    "signature",
+    "authorization",
+    "device_id",
+    "deviceid",
+    "device_model",
+    "devicemodel",
+    "install_id",
+    "installid",
+    "user_agent",
+    "useragent",
+    "os_version",
+    "osversion",
+    "user_id",
+    "userid",
+    "x_if",
+    "xif",
+    "x_kc",
+    "xkc",
+    "x-session-token",
+    "cookie",
+)
+_KEY_VALUE_PATTERN = re.compile(
+    r"(?i)(access[_-]?token|session[_-]?token|sdk[_-]?open[_-]?id|"
+    r"credential|signature|authorization|device[_-]?id|install[_-]?id|"
+    r"user[_-]?id|device[_-]?model|user[_-]?agent|os[_-]?version|x[_-]?(?:if|kc))"
+    r"(\s*[:=]\s*)([^\s,;&]+)"
+)
+_AUTHORIZATION_PATTERN = re.compile(
+    r"(?i)(authorization\s*[:=]\s*)(?:bearer\s+)?[^\s,;&]+"
+)
+
+
+def redact_mapping(value: Any) -> Any:
+    """Return a copy of nested data with credential-like fields masked."""
+    if isinstance(value, dict):
+        redacted: dict[Any, Any] = {}
+        for key, item in value.items():
+            normalized_key = str(key).replace("-", "_").casefold()
+            if any(
+                part.replace("-", "_") in normalized_key for part in _SECRET_KEY_PARTS
+            ):
+                redacted[key] = "[REDACTED]"
+            else:
+                redacted[key] = redact_mapping(item)
+        return redacted
+    if isinstance(value, list):
+        return [redact_mapping(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(redact_mapping(item) for item in value)
+    if isinstance(value, str):
+        return redact_text(value)
+    return value
+
+
+def redact_text(value: str) -> str:
+    """Mask common credential key/value pairs in text before logging."""
+    value = _AUTHORIZATION_PATTERN.sub(r"\1[REDACTED]", value)
+    return _KEY_VALUE_PATTERN.sub(r"\1\2[REDACTED]", value)
+
+
+class RedactionFilter(logging.Filter):
+    """Redact credential key/value pairs from formatted log records."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        record.msg = redact_text(record.getMessage())
+        record.args = ()
+        return True

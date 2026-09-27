@@ -1,0 +1,118 @@
+{
+  "now": 1780000000000,
+  "userGamedata": {
+    "userId": 123456789,
+    "name": "Synthetic Player",
+    "rank": 42,
+    "exp": 120,
+    "totalExp": 9000,
+    "coin": 600,
+    "virtualCoin": 25
+  },
+  "userProfile": {
+    "profileImageId": 1,
+    "profileImageType": "character",
+    "word": "synthetic private profile text",
+    "twitterId": "synthetic-social-id"
+  },
+  "userChargedCurrency": {"free": 123, "paid": 45, "paidUnitPrices": []},
+  "userCards": [
+    {
+      "cardId": 1001,
+      "level": 50,
+      "exp": 7,
+      "totalExp": 107,
+      "skillLevel": 4,
+      "skillExp": 3,
+      "totalSkillExp": 13,
+      "masterRank": 5,
+      "specialTrainingStatus": "done",
+      "defaultImage": "special_training",
+      "createdAt": 1780000000000,
+      "episodes": [
+        {
+          "cardEpisodeId": 5001,
+          "scenarioStatus": "read",
+          "scenarioStatusReasons": [],
+          "isNotSkipped": true
+        }
+      ],
+      "futureCardField": "synthetic-future-value"
+    },
+    {
+      "cardId": 9999,
+      "level": 1,
+      "masterRank": 0,
+      "specialTrainingStatus": "not_doing"
+    }
+  ],
+  "userCharacters": [
+    {"characterId": 1, "characterRank": 4, "exp": 20, "totalExp": 300}
+  ],
+  "userMaterials": [{"materialId": 3001, "quantity": 17}],
+  "userMusicResults": [
+    {
+      "musicId": 4001,
+      "musicDifficultyType": "expert",
+      "playResult": "synthetic-result",
+      "playType": "solo",
+      "highScore": 123456,
+      "fullComboFlg": true,
+      "fullPerfectFlg": false,
+      "mvpCount": 2,
+      "superStarCount": 1
+    },
+    {
+      "musicId": 4001,
+      "musicDifficultyType": "expert",
+      "playResult": "synthetic-result",
+      "fullComboFlg": false,
+      "fullPerfectFlg": false
+    }
+  ],
+  "userMusicAchievements": [
+    {"musicId": 4001, "musicAchievementId": 7001}
+  ],
+  "userDecks": [
+    {
+      "deckId": 1,
+      "name": "Synthetic deck",
+      "leader": 1001,
+      "subLeader": 1001,
+      "member1": 1001,
+      "member2": 0,
+      "member3": 0,
+      "member4": 0,
+      "member5": 0
+    }
+  ],
+  "userChallengeLiveSoloStages": [
+    {
+      "challengeLiveStageType": "normal",
+      "characterId": 1,
+      "challengeLiveStageId": 5,
+      "rank": 3,
+      "challengeLiveStageStatus": "cleared",
+      "point": 250
+    }
+  ],
+  "userChallengeLiveSoloResults": [{"characterId": 1, "highScore": 100500}],
+  "userChallengeLiveSoloHighScoreRewards": [
+    {
+      "characterId": 1,
+      "challengeLiveHighScoreRewardId": 8001,
+      "challengeLiveHighScoreStatus": "received"
+    }
+  ],
+  "userChallengeLiveSoloDecks": [
+    {
+      "characterId": 1,
+      "leader": 1001,
+      "support1": 1001,
+      "support2": null,
+      "support3": null,
+      "support4": null
+    }
+  ],
+  "userAreas": [{"progress": "synthetic-unprocessed-value"}]
+}

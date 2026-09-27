@@ -1,0 +1,11 @@
+[
+  {
+    "id": 1001,
+    "characterId": 1,
+    "cardRarityType": "rarity_4",
+    "attr": "cool",
+    "skillId": 2001,
+    "cardSkillName": "Synthetic skill",
+    "prefix": "Synthetic Card"
+  }
+]

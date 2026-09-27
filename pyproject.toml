@@ -1,0 +1,87 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pjsk-account-scanner"
+version = "0.1.0"
+description = "Extract and normalize Project SEKAI account progression data"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+license = { file = "LICENSE" }
+authors = [{ name = "Project SEKAI Account Scanner contributors" }]
+dependencies = []
+
+[project.optional-dependencies]
+api = [
+  "apscheduler",
+  "beautifulsoup4>=4.12",
+  "certifi",
+  "cffi",
+  "charset-normalizer",
+  "click",
+  "cryptography",
+  "deprecated",
+  "flask",
+  "gitdb",
+  "gitpython",
+  "idna",
+  "itsdangerous",
+  "jinja2",
+  "json-rpc",
+  "jsonrpcclient",
+  "jwcrypto",
+  "lxml",
+  "markupsafe",
+  "pycparser",
+  "pycryptodome>=3.20",
+  "pyjwt",
+  "pytz",
+  "pytz-deprecation-shim",
+  "PyYAML>=6.0",
+  "requests>=2.32",
+  "setuptools",
+  "six",
+  "smmap",
+  "tzdata",
+  "tzlocal",
+  "u-msgpack-python>=2.8",
+  "ujson",
+  "urllib3",
+  "werkzeug",
+  "wrapt",
+  "gunicorn",
+  "gevent",
+]
+
+[project.scripts]
+pjsk-scan = "pjsk_scanner.cli:main"
+
+[dependency-groups]
+dev = [
+  "mypy>=1.11",
+  "pytest>=8.3",
+  "ruff>=0.6",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-markers"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.mypy]
+python_version = "3.12"
+mypy_path = "src"
+packages = ["pjsk_scanner"]
+strict = true
+warn_unused_ignores = true
