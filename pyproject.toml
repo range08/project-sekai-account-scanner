@@ -59,6 +59,7 @@ pjsk-scan = "pjsk_scanner.cli:main"
 
 [dependency-groups]
 dev = [
+  "capstone==5.0.9",
   "mypy>=1.11",
   "pytest>=8.3",
   "ruff>=0.6",
@@ -70,6 +71,7 @@ where = ["src"]
 [tool.pytest.ini_options]
 addopts = "-ra --strict-markers"
 testpaths = ["tests"]
+pythonpath = ["."]
 
 [tool.ruff]
 line-length = 88
