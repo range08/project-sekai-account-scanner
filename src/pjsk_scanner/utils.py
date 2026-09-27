@@ -11,6 +11,10 @@ _SECRET_KEY_PARTS = (
     "accesstoken",
     "session_token",
     "sessiontoken",
+    "token",
+    "token_cache",
+    "devicetoken",
+    "sp_device_id",
     "sdk_open_id",
     "sdkopenid",
     "credential",
@@ -39,10 +43,14 @@ _SECRET_KEY_PARTS = (
     "x_kc",
     "xkc",
     "x-session-token",
+    "x-tt-token",
     "cookie",
+    "set_cookie",
 )
 _KEY_VALUE_PATTERN = re.compile(
-    r"(?i)(access[_-]?token|session[_-]?token|sdk[_-]?open[_-]?id|"
+    r"(?i)(access[_-]?token|session[_-]?token|token(?:[_-]?cache)?|"
+    r"device[_-]?token|sp[_-]?device[_-]?id|x[_-]?tt[_-]?token|"
+    r"sdk[_-]?open[_-]?id|"
     r"credential|signature|authorization|device[_-]?id|install[_-]?id|"
     r"user[_-]?id|device[_-]?model|user[_-]?agent|os[_-]?version|"
     r"aes[_-]?key|aes[_-]?iv|app[_-]?hash|x[_-]?(?:if|kc))"
@@ -51,6 +59,7 @@ _KEY_VALUE_PATTERN = re.compile(
 _AUTHORIZATION_PATTERN = re.compile(
     r"(?i)(authorization\s*[:=]\s*)(?:bearer\s+)?[^\s,;&]+"
 )
+_COOKIE_PATTERN = re.compile(r"(?i)((?:set-)?cookie\s*[:=]\s*)[^\r\n]*")
 
 
 def redact_mapping(value: Any) -> Any:
@@ -78,6 +87,7 @@ def redact_mapping(value: Any) -> Any:
 def redact_text(value: str) -> str:
     """Mask common credential key/value pairs in text before logging."""
     value = _AUTHORIZATION_PATTERN.sub(r"\1[REDACTED]", value)
+    value = _COOKIE_PATTERN.sub(r"\1[REDACTED]", value)
     return _KEY_VALUE_PATTERN.sub(r"\1\2[REDACTED]", value)
 
 

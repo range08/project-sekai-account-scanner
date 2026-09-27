@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from pjsk_scanner.cli import main
+from pjsk_scanner.errors import DeviceDiscoveryError
 from pjsk_scanner.export.json_exporter import export_account, load_account
 from pjsk_scanner.normalize.account import normalize_suite_payload
 
@@ -28,7 +29,25 @@ def test_cli_help_smoke(capsys: pytest.CaptureFixture[str]) -> None:
     with pytest.raises(SystemExit) as captured:
         main(["--help"])
     assert captured.value.code == 0
-    assert "master" in capsys.readouterr().out
+    output = capsys.readouterr().out
+    assert "master" in output
+    assert "credentials" in output
+    assert "doctor" in output
+
+
+def test_credentials_and_doctor_help_smoke(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    for command in (
+        ["credentials", "discover", "--help"],
+        ["doctor", "--help"],
+    ):
+        with pytest.raises(SystemExit) as captured:
+            main(command)
+        assert captured.value.code == 0
+        output = capsys.readouterr().out
+        assert "--env-file" in output
+    assert "--adb" in output
 
 
 def test_cli_raw_import_and_report_smoke(
@@ -108,6 +127,8 @@ def test_api_cli_checks_protocol_configuration_before_upstream_loading(
             str(master_dir),
             "--output",
             str(tmp_path / "account.json"),
+            "--env-file",
+            str(tmp_path / "missing.env"),
         ]
     )
 
@@ -115,3 +136,40 @@ def test_api_cli_checks_protocol_configuration_before_upstream_loading(
     error = capsys.readouterr().err
     assert "AES_KEY, AES_IV" in error
     assert "synthetic-" not in error
+
+
+def test_credential_discovery_failure_does_not_write_partial_config(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    env_file = tmp_path / ".env"
+
+    def fail_discovery(**_kwargs: object) -> dict[str, str]:
+        raise DeviceDiscoveryError(
+            "duplicate synthetic fields; refusing to infer access token"
+        )
+
+    monkeypatch.setattr("pjsk_scanner.cli.load_env_file", lambda _path: {})
+    monkeypatch.setattr("pjsk_scanner.cli.discover_kr_environment", fail_discovery)
+    monkeypatch.setattr(
+        "pjsk_scanner.cli.write_private_env",
+        lambda *_args, **_kwargs: pytest.fail("must not write partial credentials"),
+    )
+
+    status = main(
+        [
+            "credentials",
+            "discover",
+            "--region",
+            "kr",
+            "--env-file",
+            str(env_file),
+        ]
+    )
+
+    assert status == 1
+    assert not env_file.exists()
+    error = capsys.readouterr().err
+    assert "synthetic fields" in error
+    assert "synthetic-secret" not in error

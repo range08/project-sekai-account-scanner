@@ -15,3 +15,7 @@ class MasterDataError(ScannerError):
 
 class ApiBackendError(ScannerError):
     """The optional live API backend could not fetch account data."""
+
+
+class DeviceDiscoveryError(ScannerError):
+    """Local Android/ADB credential discovery failed safely."""

@@ -17,9 +17,13 @@ use it.
   report are implemented.
 - Cards, character progression, materials/currencies, music results, decks, and
   Challenge Live solo stages are normalized.
-- The live KR adapter is implemented against a pinned upstream client revision.
-  It has not been exercised against the live game service as part of the normal
-  test suite.
+- A local WSL2/Windows LDPlayer discovery command reads the rooted KR install,
+  derives the device fingerprint, and writes only verified fields to an
+  owner-only `.env`; it currently refuses the unresolved access-token mapping.
+- Live KR extraction uses the pinned upstream client with a fail-closed
+  authentication/suite-read request guard. This checkout has not performed a
+  live account request because the access-token mapping and current
+  `AES_KEY`/`AES_IV` material remain unverified.
 - The vision backend is an interface stub. Screenshot recognition is future
   work.
 
@@ -112,7 +116,80 @@ uv sync --group dev --extra api
 export SEKAI_CLIENT_PATH="$PWD/.local/sekai-client"
 ```
 
-Supply these values explicitly in the environment:
+### Windows LDPlayer from WSL2
+
+The discovery command supports Linux `adb` and Windows `adb.exe`. In WSL2 it
+checks Windows PATH and common LDPlayer install roots. If it cannot find ADB,
+pass its WSL-mounted path with `--adb`; pass `--serial` when multiple devices
+are connected. It does not start or stop an ADB server.
+
+The Android package must be `com.pjsekai.kr`, and the emulator must allow root
+access. The command verifies both before reading app-private data. It reads the
+`SDK_OPENID` and `SEKAI_CREDENTIAL` strings from game PlayerPrefs,
+`sp_device_id` from SDK preferences, and `SEKAI_ACCOUNT_INSTALL_ID` from
+PlayerPrefs. It gets model/OS values from Android properties and derives the
+Unity user-agent from installed APK libraries. It never reads another app's
+data, dumps process memory, or modifies game data. ADB root can access private
+game data, so use it only with your own emulator and keep `.env` and account
+exports private.
+
+```bash
+uv run pjsk-scan credentials discover --region kr
+# If needed, add --adb /mnt/<drive>/<path-to-LDPlayer>/adb.exe
+# If multiple devices are attached, add --serial <adb-serial>
+```
+
+The seven account fields are written to `.env` only after Git-ignore validation
+and with owner-only permissions. On the inspected KR 6.4.0 install,
+`SDK_OPENID` and `SEKAI_CREDENTIAL` contain the same value. The command refuses
+to treat that duplicate as the API access token and exits without writing any
+discovered fields. This is deliberate: the scanner has not verified that the
+game's stored `SEKAI_CREDENTIAL` is the `accessToken` expected by the pinned
+client. It does not print either value. It also cannot recover the AES protocol
+key from the inspected install.
+
+### Non-network preflight
+
+Run doctor before any live import:
+
+```bash
+uv run pjsk-scan doctor --region kr
+```
+
+Doctor performs no Project SEKAI HTTP requests. It checks Python 3.12, the
+pinned local client checkout, credential/protocol configuration without
+printing values, master tables, writable output/cache paths, the read-only
+request guard, and ADB package/root access. Missing or malformed AES settings
+fail preflight before API client authentication.
+
+After the account credential mapping and current protocol settings are
+independently verified, the local sequence is:
+
+```bash
+uv sync --group dev --extra api
+uv run pjsk-scan master sync --region kr
+uv run pjsk-scan credentials discover --region kr
+uv run pjsk-scan doctor --region kr
+# Only after doctor exits successfully:
+uv run pjsk-scan import api --region kr
+uv run pjsk-scan report data/output/account.json
+```
+
+If device selection is ambiguous, add `--serial <adb-serial>` to `credentials
+discover` and `doctor`. If Windows ADB is not found automatically, add
+`--adb /mnt/<drive>/<path-to-adb.exe>` to both commands. The current local
+configuration stops before a successful doctor: the stored access-token
+relationship and AES values have not been verified. No live authentication or
+account request has been made.
+
+### Account and protocol configuration
+
+`credentials discover`, `doctor`, and `import api` load `.env` automatically;
+explicit process environment values take precedence. You may pass another file
+with `--env-file`. Never run `source .env`, paste values into shell history, or
+commit the file. `.env.example` contains names/placeholders only.
+
+The required KR account fields are:
 
 ```text
 SEKAI_KR_SDK_OPEN_ID
@@ -125,23 +202,28 @@ SEKAI_KR_OS_VERSION
 ```
 
 The upstream client requires all seven for its current KR credential model.
-`.env.example` lists the variable names, but the CLI does not automatically
-load a `.env` file. Do not paste secrets into shell history or commit them.
-The adapter only reads explicitly supplied environment values. It does not
-inspect other applications or processes for credentials. Its upstream logger
-is silenced so request headers and tokens do not appear in normal CLI logs.
+For the inspected installation, the scanner does not set the duplicated
+`SEKAI_CREDENTIAL` value as the API access token. The optional live adapter
+uses only values supplied through `.env` or the process environment; normal CLI
+logs redact credentials, tokens, cookies, and protocol secrets.
 
 The protocol layer separately requires `AES_KEY` and `AES_IV`. The pinned
 client accepts AES key material as hex or UTF-8 representing 16, 24, or 32
 bytes, and an IV representing 16 bytes. The scanner validates these lengths
-before any network request and never includes their values in errors or logs.
-Never commit the values. `APP_VER` and `APP_HASH` are optional fallback
-overrides for the initial KR headers; the pinned client first tries its
-published TW/KR app-identity feed and keeps those fallback values if the feed
-is unavailable. They are not account credentials.
+before any game API request and never includes their values in errors or logs.
+Never commit the values. In the current local investigation, these settings
+were not found in the inspected SharedPreferences, app JSON/config field names,
+or SQLite databases; opaque SDK cache blocks were not decoded. The metadata
+contains generic `encryptionKey`/`encryptionIv` labels, but their owner and
+values could not be established from the protected IL2CPP build. The pinned
+upstream client cannot start the read-only API flow without verified protocol
+settings. Do not substitute stale values from old client builds. `APP_VER` and
+`APP_HASH` are optional fallback overrides for the initial KR headers; the
+pinned client first tries its published TW/KR app-identity feed and retains
+the overrides if that feed is unavailable. They are not account credentials.
 
 ```bash
-uv run --extra api pjsk-scan import api --region kr
+uv run pjsk-scan import api --region kr
 ```
 
 The live adapter uses the pinned client's private `_authenticate()` and
@@ -151,12 +233,18 @@ GET to the published app-identity feed, then POST to `/user/auth` and
 `/user/{userId}/login` to create/use a game session and obtain session/version
 state; the scanner then GETs `/suite/user/{userId}`. It does not call
 `APIClient.login()`, tutorial PATCH endpoints, or the login-bonus home refresh
-PUT endpoint. Its request guard blocks other game API endpoints and disables
-upstream automatic recovery that could log in again or make progression
-changes. Authentication itself still creates/uses a game session and is
-unofficial API interaction. Live behavior can change with server or client
-updates. The suite payload is normalized in memory; live import writes only
-the normalized account JSON, not a raw response file.
+PUT endpoint. Its transport guard allows only those three game routes in order,
+binds login and suite retrieval to the numeric user ID returned by
+authentication, rejects direct low-level transport calls, disables HTTP
+redirects, and disables upstream automatic recovery that could log in again or
+make progression changes. Authentication itself still creates/uses a game
+session and is unofficial API interaction. Live behavior can change with
+server or client updates. The suite payload is normalized in memory; live
+import writes only the normalized account JSON, not a raw response file.
+
+This live command remains unavailable until the local account credential
+mapping and current AES configuration are verified and doctor passes. No live
+authentication or account scan has been attempted from this checkout.
 
 ## Output schema
 

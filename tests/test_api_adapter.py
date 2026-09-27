@@ -16,6 +16,20 @@ from pjsk_scanner.backends.api.credentials import ApiCredentials
 from pjsk_scanner.backends.api.extractor import ApiExtractor
 from pjsk_scanner.errors import ApiBackendError
 
+requests = SimpleNamespace(request=lambda **_kwargs: None)
+
+
+class FakeProtocol:
+    def send(
+        self,
+        endpoint: str,
+        method: str,
+        data: bytes | None,
+        request_id: str | None = None,
+    ) -> object:
+        del request_id
+        return requests.request(method=method, url=endpoint, data=data)
+
 
 def test_api_adapter_authenticates_then_reads_suite_without_login_mutations(
     master: Any, monkeypatch: pytest.MonkeyPatch
@@ -38,6 +52,7 @@ def test_api_adapter_authenticates_then_reads_suite_without_login_mutations(
             self.user_info: dict[str, Any] = {}
             self.version_info: dict[str, Any] = {}
             self.headers = {"x-session-token": "synthetic-bootstrap-token"}
+            self.protocol = FakeProtocol()
             self._pending_game_user_id: int | None = None
             self._authenticating = False
             self.calls: list[tuple[str, str, bool]] = []
@@ -54,6 +69,8 @@ def test_api_adapter_authenticates_then_reads_suite_without_login_mutations(
         ) -> object:
             del body, retry_policy
             self.calls.append((endpoint, method, bypass_error_recovery))
+            if endpoint == "/user/auth":
+                return {"userId": 123456789}
             return payload if endpoint.startswith("/suite/user/") else {}
 
         def _authenticate(self) -> dict[str, Any]:
@@ -150,6 +167,7 @@ def test_request_guard_rejects_progression_mutation() -> None:
     class FakeTransport:
         def __init__(self) -> None:
             self.calls: list[tuple[str, str]] = []
+            self.protocol = FakeProtocol()
 
         def call_pjsk_api(
             self, endpoint: str, method: str = "get", *_args: Any
@@ -170,6 +188,49 @@ def test_request_guard_rejects_progression_mutation() -> None:
             "/user/123456789/tutorial", "patch", {"tutorialStatus": "end"}
         )
     assert client.calls == []
+
+
+def test_low_level_guard_blocks_bypass_and_disables_redirects(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    protocol = FakeProtocol()
+    client = SimpleNamespace(protocol=protocol, _pending_game_user_id=None)
+
+    def original_call(
+        endpoint: str,
+        method: str,
+        _body: str | dict[str, Any] = "",
+        _retry_policy: object | None = None,
+        *,
+        bypass_error_recovery: bool = False,
+    ) -> dict[str, int]:
+        assert bypass_error_recovery is True
+        protocol.send(endpoint, method, b"synthetic-encrypted-data")
+        return {"userId": 123456789} if endpoint == "/user/auth" else {}
+
+    client.call_pjsk_api = original_call
+    sent: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        requests,
+        "request",
+        lambda **kwargs: sent.append(kwargs) or "response",
+    )
+    install_read_only_request_guard(client)
+
+    with pytest.raises(ApiBackendError, match="unapproved low-level"):
+        client.protocol.send("/user/auth", "post", b"direct")
+    assert client.call_pjsk_api("/user/auth", "post", {}) == {"userId": 123456789}
+    with pytest.raises(ApiBackendError, match="authenticated KR user"):
+        client.call_pjsk_api("/user/3/login", "post")
+    client.call_pjsk_api("/user/123456789/login", "post")
+    client._pending_game_user_id = 123456789
+    client.call_pjsk_api("/suite/user/123456789", "get")
+    assert [call["allow_redirects"] for call in sent] == [False, False, False]
+    with pytest.raises(ApiBackendError, match="low-level request"):
+        client.protocol.send("/user/123456789/home/refresh", "put", b"data")
+    with pytest.raises(ApiBackendError, match="Suite request"):
+        client.call_pjsk_api("/suite/user/2", "get")
+    assert len(sent) == 3
 
 
 def test_incompatible_upstream_fails_closed_without_login_fallback() -> None:

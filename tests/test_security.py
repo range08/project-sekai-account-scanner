@@ -87,6 +87,31 @@ def test_log_filter_redacts_protocol_values() -> None:
     assert message == "AES_KEY=[REDACTED] AES_IV=[REDACTED] APP_HASH=[REDACTED]"
 
 
+def test_redacts_android_sdk_tokens_and_identifiers() -> None:
+    secret_values = (
+        "fake-device-token",
+        "fake-cache-token",
+        "fake-sp-device-id",
+        "fake-tt-token",
+        "fake-cookie",
+    )
+    message = redact_text(
+        "device_token=fake-device-token token_cache=fake-cache-token "
+        "sp_device_id=fake-sp-device-id X-Tt-Token=fake-tt-token "
+        "Cookie=fake-cookie"
+    )
+
+    assert all(secret not in message for secret in secret_values)
+    assert message.count("[REDACTED]") == len(secret_values)
+
+
+def test_redacts_entire_cookie_header() -> None:
+    message = redact_text("Cookie=sessionid=fake-session; sessionid_ss=fake-session-ss")
+
+    assert "fake-session" not in message
+    assert "fake-session-ss" not in message
+
+
 def test_credentials_hide_values_from_repr(monkeypatch: pytest.MonkeyPatch) -> None:
     values = {
         "SEKAI_KR_SDK_OPEN_ID": "fake-open-id",

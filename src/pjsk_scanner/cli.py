@@ -8,12 +8,15 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
+from pjsk_scanner.backends.api.credential_discovery import discover_kr_environment
 from pjsk_scanner.backends.api.credentials import ApiCredentials
 from pjsk_scanner.backends.api.extractor import ApiExtractor
 from pjsk_scanner.backends.api.protocol import ApiProtocolConfig
-from pjsk_scanner.errors import ScannerError
+from pjsk_scanner.doctor import format_doctor, run_doctor
+from pjsk_scanner.errors import ApiBackendError, ScannerError
 from pjsk_scanner.export.json_exporter import export_account, load_account
 from pjsk_scanner.export.summary import render_summary
+from pjsk_scanner.local_config import load_env_file, write_private_env
 from pjsk_scanner.master.downloader import MasterDataDownloader
 from pjsk_scanner.master.repository import MasterDataRepository
 from pjsk_scanner.normalize.account import normalize_suite_payload
@@ -49,6 +52,35 @@ def build_parser() -> argparse.ArgumentParser:
     api = import_commands.add_parser("api", help="fetch your account from KR")
     _add_region(api)
     _add_import_paths(api)
+    api.add_argument("--env-file", type=Path, default=Path(".env"))
+
+    credentials = commands.add_parser(
+        "credentials", help="manage local API credentials"
+    )
+    credential_commands = credentials.add_subparsers(
+        dest="credentials_command", required=True
+    )
+    discover = credential_commands.add_parser(
+        "discover", help="read your rooted Android KR installation safely"
+    )
+    _add_region(discover)
+    discover.add_argument("--adb", help="ADB executable; can be a Windows adb.exe")
+    discover.add_argument(
+        "--serial", help="ADB serial when multiple devices are connected"
+    )
+    discover.add_argument("--env-file", type=Path, default=Path(".env"))
+
+    doctor = commands.add_parser(
+        "doctor", help="check local configuration without game API requests"
+    )
+    _add_region(doctor)
+    doctor.add_argument("--adb", help="ADB executable; can be a Windows adb.exe")
+    doctor.add_argument(
+        "--serial", help="ADB serial when multiple devices are connected"
+    )
+    doctor.add_argument("--env-file", type=Path, default=Path(".env"))
+    doctor.add_argument("--master-dir", type=Path, default=Path("data/master"))
+    doctor.add_argument("--output-dir", type=Path, default=Path("data/output"))
 
     report = commands.add_parser("report", help="summarize normalized account JSON")
     report.add_argument("path", type=Path)
@@ -89,6 +121,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"Wrote normalized account JSON to {destination}")
             return 0
         if args.command == "import" and args.import_source == "api":
+            load_env_file(args.env_file)
             credentials = ApiCredentials.from_environment()
             ApiProtocolConfig.from_environment()
             master = MasterDataRepository(args.master_dir, args.region)
@@ -96,6 +129,34 @@ def main(argv: Sequence[str] | None = None) -> int:
             destination = export_account(account, args.output)
             print(f"Wrote normalized account JSON to {destination}")
             return 0
+        if args.command == "credentials" and args.credentials_command == "discover":
+            load_env_file(args.env_file)
+            discovered = discover_kr_environment(adb=args.adb, serial=args.serial)
+            destination = write_private_env(discovered, args.env_file)
+            print(
+                f"Discovered {len(discovered)} KR account/API fields and wrote them "
+                "to the Git-ignored local config with owner-only permissions."
+            )
+            try:
+                ApiProtocolConfig.from_environment()
+            except ApiBackendError as error:
+                print(f"pjsk-scan: {error}", file=sys.stderr)
+                return 1
+            print(
+                f"Required AES protocol configuration is present in {destination.name}."
+            )
+            return 0
+        if args.command == "doctor":
+            checks = run_doctor(
+                region=args.region,
+                env_file=args.env_file,
+                master_dir=args.master_dir,
+                output_dir=args.output_dir,
+                adb=args.adb,
+                serial=args.serial,
+            )
+            print(format_doctor(checks))
+            return 0 if all(check.ok for check in checks) else 1
         if args.command == "report":
             print(render_summary(load_account(args.path)))
             return 0
