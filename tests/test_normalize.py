@@ -34,7 +34,9 @@ def test_normalizes_cards_and_keeps_missing_optional_fields_none(master: Any) ->
     assert card.level == 50
     assert card.experience == 7
     assert card.total_experience == 107
-    assert card.max_level == 50
+    assert card.base_max_level == 50
+    assert card.training_max_level == 60
+    assert card.max_level == 60
     assert card.skill_level == 4
     assert card.skill_experience == 3
     assert card.total_skill_experience == 13
@@ -68,6 +70,28 @@ def test_normalizes_character_and_material_lookups(master: Any) -> None:
     assert account.charged_currency is not None
     assert account.charged_currency.free == 123
     assert account.charged_currency.paid == 45
+
+
+def test_card_level_cap_uses_training_state_conservatively(master: Any) -> None:
+    account = normalize_suite_payload(
+        {
+            "userCards": [
+                {"cardId": 1001, "specialTrainingStatus": "not_doing"},
+                {"cardId": 1001, "specialTrainingStatus": "future_status"},
+            ]
+        },
+        master,
+    )
+
+    untrained, unknown = account.cards
+    assert untrained.max_level == 50
+    assert untrained.base_max_level == 50
+    assert untrained.training_max_level == 60
+    assert untrained.is_special_trained is False
+    assert unknown.max_level is None
+    assert unknown.base_max_level == 50
+    assert unknown.training_max_level == 60
+    assert unknown.is_special_trained is None
 
 
 def test_normalizes_music_without_guessing_result_semantics(master: Any) -> None:

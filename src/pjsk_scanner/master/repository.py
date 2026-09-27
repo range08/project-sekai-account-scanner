@@ -98,6 +98,7 @@ class MasterDataRepository:
         return RarityMaster(
             rarity=rarity,
             max_level=_int(row.get("maxLevel")),
+            training_max_level=_int(row.get("trainingMaxLevel")),
             max_skill_level=_int(row.get("maxSkillLevel")),
         )
 

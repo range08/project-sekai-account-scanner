@@ -1,3 +1,14 @@
 [
-  {"cardRarityType": "rarity_4", "maxLevel": 50, "maxSkillLevel": 4}
+  {
+    "cardRarityType": "rarity_4",
+    "maxLevel": 50,
+    "trainingMaxLevel": 60,
+    "maxSkillLevel": 4
+  },
+  {
+    "cardRarityType": "rarity_3",
+    "maxLevel": 40,
+    "trainingMaxLevel": 50,
+    "maxSkillLevel": 3
+  }
 ]

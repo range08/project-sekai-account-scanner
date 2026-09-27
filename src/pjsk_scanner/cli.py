@@ -10,6 +10,7 @@ from pathlib import Path
 
 from pjsk_scanner.backends.api.credentials import ApiCredentials
 from pjsk_scanner.backends.api.extractor import ApiExtractor
+from pjsk_scanner.backends.api.protocol import ApiProtocolConfig
 from pjsk_scanner.errors import ScannerError
 from pjsk_scanner.export.json_exporter import export_account, load_account
 from pjsk_scanner.export.summary import render_summary
@@ -89,6 +90,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0
         if args.command == "import" and args.import_source == "api":
             credentials = ApiCredentials.from_environment()
+            ApiProtocolConfig.from_environment()
             master = MasterDataRepository(args.master_dir, args.region)
             account = ApiExtractor(master, credentials).extract()
             destination = export_account(account, args.output)

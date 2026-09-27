@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib
 import logging
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -15,6 +16,8 @@ from pjsk_scanner.errors import ApiBackendError
 from pjsk_scanner.utils import RedactionFilter
 
 EXPECTED_SEKAI_CLIENT_COMMIT = "bfae1c53454777bec4107c43295d350e114d7f85"
+_USER_LOGIN_PATH = re.compile(r"^/user/[0-9]+/login$")
+_SUITE_USER_PATH = re.compile(r"^/suite/user/[0-9]+$")
 
 
 def load_upstream_modules() -> tuple[type[Any], ModuleType]:
@@ -71,6 +74,67 @@ def load_upstream_modules() -> tuple[type[Any], ModuleType]:
     if not isinstance(api_client_type, type):
         raise ApiBackendError("Pinned sekai-client does not expose APIClient")
     return api_client_type, accounts_module
+
+
+def validate_read_only_client(client: Any) -> None:
+    """Fail closed if the pinned client's read-only auth surface has changed."""
+    required_methods = (
+        "_authenticate",
+        "_apply_auth_headers_and_version_info",
+        "fetch_suite_user",
+        "call_pjsk_api",
+    )
+    missing = [
+        name for name in required_methods if not callable(getattr(client, name, None))
+    ]
+    required_state = ("_pending_game_user_id", "_authenticating")
+    missing.extend(name for name in required_state if not hasattr(client, name))
+    if missing:
+        methods = ", ".join(missing)
+        raise ApiBackendError(
+            "Pinned sekai-client is incompatible with read-only extraction; "
+            f"missing required API surface: {methods}"
+        )
+
+
+def install_read_only_request_guard(client: Any) -> None:
+    """Allow only KR authentication and suite reads through the game API client.
+
+    Recovery is disabled on these calls because the upstream recovery handlers
+    can invoke login, agreement, cookie, or version-refresh operations.
+    """
+    original_call = client.call_pjsk_api
+
+    def guarded_call(
+        endpoint: str,
+        method: str = "get",
+        body: str | dict[str, Any] = "",
+        retry_policy: Any | None = None,
+        *,
+        bypass_error_recovery: bool = False,
+    ) -> Any:
+        del bypass_error_recovery
+        path = endpoint.split("?", 1)[0]
+        normalized_method = method.lower()
+        allowed = (
+            (path == "/user/auth" and normalized_method == "post")
+            or (_USER_LOGIN_PATH.fullmatch(path) and normalized_method == "post")
+            or (_SUITE_USER_PATH.fullmatch(path) and normalized_method == "get")
+        )
+        if not allowed:
+            raise ApiBackendError(
+                "Pinned sekai-client attempted a request outside the "
+                "authentication and suite-read allowlist"
+            )
+        return original_call(
+            endpoint,
+            method,
+            body,
+            retry_policy,
+            bypass_error_recovery=True,
+        )
+
+    client.call_pjsk_api = guarded_call
 
 
 def quiet_upstream_logger() -> logging.Logger:

@@ -49,6 +49,8 @@ class CardProgress:
     level: int | None = None
     experience: int | None = None
     total_experience: int | None = None
+    base_max_level: int | None = None
+    training_max_level: int | None = None
     max_level: int | None = None
     skill_level: int | None = None
     skill_experience: int | None = None

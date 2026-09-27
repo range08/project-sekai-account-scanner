@@ -20,6 +20,7 @@ class CardMaster:
 class RarityMaster:
     rarity: str
     max_level: int | None
+    training_max_level: int | None
     max_skill_level: int | None
 
 

@@ -26,6 +26,12 @@ _SECRET_KEY_PARTS = (
     "useragent",
     "os_version",
     "osversion",
+    "aes_key",
+    "aeskey",
+    "aes_iv",
+    "aesiv",
+    "app_hash",
+    "apphash",
     "user_id",
     "userid",
     "x_if",
@@ -38,7 +44,8 @@ _SECRET_KEY_PARTS = (
 _KEY_VALUE_PATTERN = re.compile(
     r"(?i)(access[_-]?token|session[_-]?token|sdk[_-]?open[_-]?id|"
     r"credential|signature|authorization|device[_-]?id|install[_-]?id|"
-    r"user[_-]?id|device[_-]?model|user[_-]?agent|os[_-]?version|x[_-]?(?:if|kc))"
+    r"user[_-]?id|device[_-]?model|user[_-]?agent|os[_-]?version|"
+    r"aes[_-]?key|aes[_-]?iv|app[_-]?hash|x[_-]?(?:if|kc))"
     r"(\s*[:=]\s*)([^\s,;&]+)"
 )
 _AUTHORIZATION_PATTERN = re.compile(

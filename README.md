@@ -100,10 +100,9 @@ upstream protocol code into this repository.
 
 The expected upstream revision is
 [`bfae1c53454777bec4107c43295d350e114d7f85`](https://github.com/Sekai-World/sekai-client/commit/bfae1c53454777bec4107c43295d350e114d7f85).
-That revision targets Python 3.12, requires the credentials listed below for
-KR, and exposes `APIClient.login()` / `fetch_suite_user()`.
-The optional `api` extra installs the runtime dependency set declared by that
-upstream revision.
+That revision targets Python 3.12 and requires the account credentials and
+protocol configuration below for KR. The optional `api` extra installs the
+runtime dependency set declared by that upstream revision.
 
 ```bash
 mkdir -p .local
@@ -132,13 +131,32 @@ The adapter only reads explicitly supplied environment values. It does not
 inspect other applications or processes for credentials. Its upstream logger
 is silenced so request headers and tokens do not appear in normal CLI logs.
 
+The protocol layer separately requires `AES_KEY` and `AES_IV`. The pinned
+client accepts AES key material as hex or UTF-8 representing 16, 24, or 32
+bytes, and an IV representing 16 bytes. The scanner validates these lengths
+before any network request and never includes their values in errors or logs.
+Never commit the values. `APP_VER` and `APP_HASH` are optional fallback
+overrides for the initial KR headers; the pinned client first tries its
+published TW/KR app-identity feed and keeps those fallback values if the feed
+is unavailable. They are not account credentials.
+
 ```bash
 uv run --extra api pjsk-scan import api --region kr
 ```
 
-The API response is normalized in memory and is not saved as a raw file. The
-upstream client may make authentication and post-login requests as part of its
-login flow. Live behavior can change with server or client updates.
+The live adapter uses the pinned client's private `_authenticate()` and
+`_apply_auth_headers_and_version_info()` methods, then calls
+`fetch_suite_user()`. For KR, the authentication method may make a read-only
+GET to the published app-identity feed, then POST to `/user/auth` and
+`/user/{userId}/login` to create/use a game session and obtain session/version
+state; the scanner then GETs `/suite/user/{userId}`. It does not call
+`APIClient.login()`, tutorial PATCH endpoints, or the login-bonus home refresh
+PUT endpoint. Its request guard blocks other game API endpoints and disables
+upstream automatic recovery that could log in again or make progression
+changes. Authentication itself still creates/uses a game session and is
+unofficial API interaction. Live behavior can change with server or client
+updates. The suite payload is normalized in memory; live import writes only
+the normalized account JSON, not a raw response file.
 
 ## Output schema
 
@@ -150,6 +168,11 @@ level, master rank, special-training status, and fields enriched from KR master
 data, including rarity limits and skill text. Per-card power is `null` because
 the suite card records do not contain those stats and this version does not
 calculate them.
+
+Card JSON exposes `baseMaxLevel` and `trainingMaxLevel` from master data.
+`maxLevel` is the effective cap: trained cards use the training cap, confirmed
+untrained cards use the base cap, and an unrecognized training state leaves
+`maxLevel` null when the two caps differ.
 
 The source has direct full-combo and all-perfect flags. Those flags are
 preserved as reported. `cleared` is `true` when one of those flags confirms a
@@ -196,5 +219,5 @@ runners with Python 3.12.
   names of additional non-empty suite fields without retaining their values.
 - Master data is fetched from a third-party repository and may lag the game.
 - Live API extraction depends on the pinned upstream checkout and current
-  service behavior; it has not been validated with a real account in CI.
+  service behavior; it has not been tested with a real account.
 - Vision/screenshot extraction is not implemented.

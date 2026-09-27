@@ -73,3 +73,45 @@ def test_cli_reports_invalid_suite_as_nonzero_without_traceback(
 
     assert status == 1
     assert "Traceback" not in capsys.readouterr().err
+
+
+def test_api_cli_checks_protocol_configuration_before_upstream_loading(
+    master_dir: Path,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for name in (
+        "SEKAI_KR_SDK_OPEN_ID",
+        "SEKAI_KR_ACCESS_TOKEN",
+        "SEKAI_KR_DEVICE_ID",
+        "SEKAI_KR_INSTALL_ID",
+        "SEKAI_KR_USER_AGENT",
+        "SEKAI_KR_DEVICE_MODEL",
+        "SEKAI_KR_OS_VERSION",
+    ):
+        monkeypatch.setenv(name, f"synthetic-{name.lower()}")
+    monkeypatch.delenv("AES_KEY", raising=False)
+    monkeypatch.delenv("AES_IV", raising=False)
+    monkeypatch.setattr(
+        "pjsk_scanner.backends.api.extractor.load_upstream_modules",
+        lambda: pytest.fail("protocol preflight must happen before network setup"),
+    )
+
+    status = main(
+        [
+            "import",
+            "api",
+            "--region",
+            "kr",
+            "--master-dir",
+            str(master_dir),
+            "--output",
+            str(tmp_path / "account.json"),
+        ]
+    )
+
+    assert status == 1
+    error = capsys.readouterr().err
+    assert "AES_KEY, AES_IV" in error
+    assert "synthetic-" not in error

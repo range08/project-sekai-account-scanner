@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from pjsk_scanner.errors import SuitePayloadError
+from pjsk_scanner.master.models import RarityMaster
 from pjsk_scanner.master.repository import MasterDataRepository
 from pjsk_scanner.models import CardEpisodeProgress, CardProgress
 from pjsk_scanner.normalize.fields import (
@@ -43,7 +44,9 @@ def normalize_cards(
                 level=int_field(row, "level", context),
                 experience=int_field(row, "exp", context),
                 total_experience=int_field(row, "totalExp", context),
-                max_level=rarity.max_level if rarity else None,
+                base_max_level=rarity.max_level if rarity else None,
+                training_max_level=rarity.training_max_level if rarity else None,
+                max_level=_effective_max_level(training_status, rarity),
                 skill_level=int_field(row, "skillLevel", context),
                 skill_experience=int_field(row, "skillExp", context),
                 total_skill_experience=int_field(row, "totalSkillExp", context),
@@ -102,4 +105,18 @@ def _training_complete(status: str | None) -> bool | None:
         return True
     if status == "not_doing":
         return False
+    return None
+
+
+def _effective_max_level(status: str | None, rarity: RarityMaster | None) -> int | None:
+    if rarity is None:
+        return None
+    base_level = rarity.max_level
+    trained_level = rarity.training_max_level
+    if status == "done":
+        return trained_level if trained_level is not None else base_level
+    if status == "not_doing":
+        return base_level
+    if trained_level is None or trained_level == base_level:
+        return base_level
     return None

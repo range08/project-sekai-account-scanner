@@ -23,6 +23,8 @@ def test_master_repository_loads_and_indexes_tables(master_dir: Path) -> None:
     assert character is not None and character.name == "Sample Character"
     assert material is not None and material.name == "Synthetic Material"
     assert difficulty is not None and difficulty.play_level == 25
+    rarity = repository.rarity("rarity_4")
+    assert rarity is not None and rarity.training_max_level == 60
     assert repository.max_master_rank("rarity_4") == 5
     assert repository.max_character_rank(1) == 5
 
